@@ -34,4 +34,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error pinging database")
 	}
+
+	//rep := repository.NewTodoPostgresRepository(db)
 }

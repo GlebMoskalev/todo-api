@@ -8,3 +8,12 @@ const (
 	Completed  Status = "completed"
 	Canceled   Status = "canceled"
 )
+
+func IsValidStatus(s Status) bool {
+	switch s {
+	case Planned, InProgress, Completed, Canceled:
+		return true
+	default:
+		return false
+	}
+}

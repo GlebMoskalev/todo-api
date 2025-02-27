@@ -7,7 +7,6 @@ import (
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"strings"
 	"time"
@@ -23,11 +22,10 @@ func NewTodoPostgresRepository(db *sql.DB) *TodoPostgresRepository {
 	}
 }
 
-func (r *TodoPostgresRepository) Create(todo *todo.Todo) (uuid.UUID, error) {
+func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 	if err := todo.Validate(); err != nil {
-		return uuid.Nil, err
+		return 0, err
 	}
-	todo.ID = uuid.New()
 
 	_, err := r.db.Exec(
 		"INSERT INTO todos (id, title, description, due_date, tags, priority, status, overdue) "+
@@ -42,12 +40,12 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (uuid.UUID, error) {
 		todo.Overdue,
 	)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("error inserting todo: %w", err)
+		return 0, fmt.Errorf("error inserting todo: %w", err)
 	}
 	return todo.ID, nil
 }
 
-func (r *TodoPostgresRepository) GetById(id uuid.UUID) (*todo.Todo, error) {
+func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 	t := &todo.Todo{}
 	err := r.db.QueryRow(
 		"SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos WHERE id = $1",
@@ -70,8 +68,8 @@ func (r *TodoPostgresRepository) GetById(id uuid.UUID) (*todo.Todo, error) {
 
 func (r *TodoPostgresRepository) GetAll(
 	tags []string,
-	status status.Status,
-	priority priority.Priority,
+	statusFilter status.Status,
+	priorityFilter priority.Priority,
 	overdue bool,
 	dueDate time.Time) (*todo.Todos, error) {
 	query := "SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos"
@@ -92,21 +90,21 @@ func (r *TodoPostgresRepository) GetAll(
 		}
 	}
 
-	if status != "" {
-		if !todo.IsValidStatus(status) {
-			return nil, fmt.Errorf("invalid value field \"Status\": %s", status)
+	if statusFilter != "" {
+		if !status.IsValidStatus(statusFilter) {
+			return nil, fmt.Errorf("invalid value field \"Status\": %s", statusFilter)
 		}
-		conditions = append(conditions, fmt.Sprintf("status = $%d", paramsCount))
-		params = append(params, string(status))
+		conditions = append(conditions, fmt.Sprintf("statusFilter = $%d", paramsCount))
+		params = append(params, string(statusFilter))
 		paramsCount++
 	}
 
-	if priority != "" {
-		if !todo.IsValidPriority(priority) {
-			return nil, fmt.Errorf("invalid value field \"Priority\": %s", priority)
+	if priorityFilter != "" {
+		if !priority.IsValidPriority(priorityFilter) {
+			return nil, fmt.Errorf("invalid value field \"Priority\": %s", priorityFilter)
 		}
-		conditions = append(conditions, fmt.Sprintf("priority = $%d", paramsCount))
-		params = append(params, string(priority))
+		conditions = append(conditions, fmt.Sprintf("priorityFilter = $%d", paramsCount))
+		params = append(params, string(priorityFilter))
 		paramsCount++
 	}
 	if overdue {
@@ -184,7 +182,7 @@ func (r *TodoPostgresRepository) Update(todo *todo.Todo) error {
 	return nil
 }
 
-func (r *TodoPostgresRepository) Delete(ids []uuid.UUID) error {
+func (r *TodoPostgresRepository) Delete(ids []int) error {
 	if len(ids) == 0 {
 		return errors.New("no ids provided for deletion")
 	}
