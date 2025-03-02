@@ -27,10 +27,9 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 		return 0, err
 	}
 
-	_, err := r.db.Exec(
-		"INSERT INTO todos (id, title, description, due_date, tags, priority, status, overdue) "+
-			"VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-		todo.ID,
+	row := r.db.QueryRow(
+		"INSERT INTO todos (title, description, due_date, tags, priority, status, overdue) "+
+			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
 		todo.Title,
 		todo.Description,
 		todo.DueDate,
@@ -39,9 +38,11 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 		todo.Status,
 		todo.Overdue,
 	)
-	if err != nil {
-		return 0, fmt.Errorf("error inserting todo: %w", err)
+	var id int
+	if err := row.Scan(&id); err != nil {
+		return 0, fmt.Errorf("error scanning last insert id: %w", err)
 	}
+	todo.ID = id
 	return todo.ID, nil
 }
 
@@ -94,7 +95,7 @@ func (r *TodoPostgresRepository) GetAll(
 		if !status.IsValidStatus(statusFilter) {
 			return nil, fmt.Errorf("invalid value field \"Status\": %s", statusFilter)
 		}
-		conditions = append(conditions, fmt.Sprintf("statusFilter = $%d", paramsCount))
+		conditions = append(conditions, fmt.Sprintf("status = $%d", paramsCount))
 		params = append(params, string(statusFilter))
 		paramsCount++
 	}
@@ -103,7 +104,7 @@ func (r *TodoPostgresRepository) GetAll(
 		if !priority.IsValidPriority(priorityFilter) {
 			return nil, fmt.Errorf("invalid value field \"Priority\": %s", priorityFilter)
 		}
-		conditions = append(conditions, fmt.Sprintf("priorityFilter = $%d", paramsCount))
+		conditions = append(conditions, fmt.Sprintf("priority = $%d", paramsCount))
 		params = append(params, string(priorityFilter))
 		paramsCount++
 	}

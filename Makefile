@@ -11,3 +11,6 @@ migrate_up:
 
 migrate_down:
 	migrate -path migrations -database "postgres://$(DB_HOST)/$(DB_NAME)?sslmode=disable" down
+
+test:
+	go test -v ./...
