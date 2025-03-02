@@ -18,20 +18,19 @@ import (
 )
 
 const (
-	dbName     = "test_db"
-	dbUser     = "test_user"
-	dbPassword = "test_password"
+	masterDbName = "master_db"
+	dbUser       = "test_user"
+	dbPassword   = "test_password"
 )
 
 type TestDatabase struct {
-	DbInstance *sql.DB
-	DbAddress  string
-	container  testcontainers.Container
+	DbAddress string
+	container testcontainers.Container
 }
 
-func SetupTestDataBase() *TestDatabase {
+func SetupMasterDatabase() *TestDatabase {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-	container, dbInstance, dbAddr, err := createContainer(ctx)
+	container, dbInstance, dbAddr, err := createContainer(ctx, masterDbName)
 	if err != nil {
 		log.Fatal("failed to setup test", err)
 	}
@@ -41,19 +40,52 @@ func SetupTestDataBase() *TestDatabase {
 		log.Fatal("failed to perform db migration", err)
 	}
 	cancel()
+	dbInstance.Close()
 	return &TestDatabase{
-		DbInstance: dbInstance,
-		DbAddress:  dbAddr,
-		container:  container,
+		DbAddress: dbAddr,
+		container: container,
 	}
 }
 
-func (tdb *TestDatabase) TearDown() {
-	tdb.DbInstance.Close()
-	_ = tdb.container.Terminate(context.Background())
+func SetupTestDatabase(masterAddr string, testDbName string) (*sql.DB, error) {
+	masterConnStr := fmt.Sprintf("postgres://%s:%s@%s/postgres?sslmode=disable", dbUser, dbPassword, masterAddr)
+	masterDb, err := sql.Open("postgres", masterConnStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %v", err)
+	}
+	defer masterDb.Close()
+	query := fmt.Sprintf("CREATE DATABASE %s WITH TEMPLATE %s", testDbName, masterDbName)
+	_, err = masterDb.Exec(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test database: %v", err)
+	}
+
+	testConnStr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPassword, masterAddr, testDbName)
+	testDb, err := sql.Open("postgres", testConnStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to test database: %v", err)
+	}
+
+	err = testDb.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("failed to ping database: %v", err)
+	}
+	return testDb, nil
 }
 
-func createContainer(ctx context.Context) (testcontainers.Container, *sql.DB, string, error) {
+func TearDownTestDatabase(masterAddr string, testDbName string) error {
+	masterConnStr := fmt.Sprintf("postgres://%s:%s@%s/postgres?sslmode=disable", dbUser, dbPassword, masterAddr)
+	masterDb, err := sql.Open("postgres", masterConnStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to postgres: %v", err)
+	}
+	defer masterDb.Close()
+
+	_, err = masterDb.Exec(fmt.Sprintf("DROP DATABASE %s", testDbName))
+	return err
+}
+
+func createContainer(ctx context.Context, dbName string) (testcontainers.Container, *sql.DB, string, error) {
 	var env = map[string]string{
 		"POSTGRES_PASSWORD": dbPassword,
 		"POSTGRES_USER":     dbUser,
@@ -107,7 +139,7 @@ func migrateDb(dbAddr string) error {
 
 	pathToRepository := filepath.Dir(path)
 	pathToMigrationFiles := filepath.Join(pathToRepository, "../../migrations")
-	databaseURL := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPassword, dbAddr, dbName)
+	databaseURL := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPassword, dbAddr, masterDbName)
 
 	m, err := migrate.New(fmt.Sprintf("file:%s", pathToMigrationFiles), databaseURL)
 	if err != nil {
