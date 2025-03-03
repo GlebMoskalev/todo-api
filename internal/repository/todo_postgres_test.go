@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
@@ -37,7 +36,7 @@ func TestCreateTodo(t *testing.T) {
 	testCases := []struct {
 		name          string
 		todo          *todo.Todo
-		setup         func(db *sql.DB)
+		setup         func(repo *TodoPostgresRepository)
 		expectedId    int
 		expectedError bool
 	}{
@@ -52,8 +51,7 @@ func TestCreateTodo(t *testing.T) {
 			name:       "increase id",
 			todo:       createTestTodo(),
 			expectedId: 2,
-			setup: func(db *sql.DB) {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) {
 				firstId, err := repo.Create(createTestTodo())
 				assert.NoError(t, err)
 				assert.Equal(t, 1, firstId)
@@ -94,7 +92,7 @@ func TestCreateTodo(t *testing.T) {
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
 			repo := TodoPostgresRepository{db: testDb}
 			if tc.setup != nil {
-				tc.setup(testDb)
+				tc.setup(&repo)
 			}
 			id, err := repo.Create(tc.todo)
 			if tc.expectedError {
@@ -111,7 +109,7 @@ func TestCreateTodo(t *testing.T) {
 func TestGetByIdTodo(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setup         func(db *sql.DB)
+		setup         func(repo *TodoPostgresRepository)
 		expectedId    int
 		expectedError bool
 	}{
@@ -122,8 +120,7 @@ func TestGetByIdTodo(t *testing.T) {
 		},
 		{
 			name: "returns task successfully",
-			setup: func(db *sql.DB) {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) {
 				repo.Create(createTestTodo())
 			},
 			expectedError: false,
@@ -140,7 +137,7 @@ func TestGetByIdTodo(t *testing.T) {
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
 			repo := TodoPostgresRepository{db: testDb}
 			if tc.setup != nil {
-				tc.setup(testDb)
+				tc.setup(&repo)
 			}
 			receivedTodo, err := repo.GetById(1)
 			if tc.expectedError {
@@ -158,13 +155,12 @@ func TestGetByIdTodo(t *testing.T) {
 func TestUpdateTodo(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setup         func(db *sql.DB) *todo.Todo
+		setup         func(repo *TodoPostgresRepository) *todo.Todo
 		expectedError bool
 	}{
 		{
 			name: "successfully update",
-			setup: func(db *sql.DB) *todo.Todo {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				id, err := repo.Create(createTestTodo())
 				assert.NoError(t, err)
 
@@ -181,7 +177,7 @@ func TestUpdateTodo(t *testing.T) {
 		},
 		{
 			name: "update non-existing todo",
-			setup: func(db *sql.DB) *todo.Todo {
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				testTodo := createTestTodo()
 				testTodo.ID = 999
 				return testTodo
@@ -190,15 +186,14 @@ func TestUpdateTodo(t *testing.T) {
 		},
 		{
 			name: "missing ID",
-			setup: func(db *sql.DB) *todo.Todo {
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				return createTestTodo()
 			},
 			expectedError: true,
 		},
 		{
 			name: "invalid priority",
-			setup: func(db *sql.DB) *todo.Todo {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				id, err := repo.Create(createTestTodo())
 				assert.NoError(t, err)
 
@@ -211,8 +206,7 @@ func TestUpdateTodo(t *testing.T) {
 		},
 		{
 			name: "invalid status",
-			setup: func(db *sql.DB) *todo.Todo {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				id, err := repo.Create(createTestTodo())
 				assert.NoError(t, err)
 
@@ -224,8 +218,7 @@ func TestUpdateTodo(t *testing.T) {
 			expectedError: true,
 		}, {
 			name: "update unchanged todo",
-			setup: func(db *sql.DB) *todo.Todo {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) *todo.Todo {
 				testTodo := createTestTodo()
 				id, err := repo.Create(testTodo)
 				assert.NoError(t, err)
@@ -248,7 +241,7 @@ func TestUpdateTodo(t *testing.T) {
 			repo := TodoPostgresRepository{db: testDb}
 
 			var todoToUpdated *todo.Todo
-			todoToUpdated = tc.setup(testDb)
+			todoToUpdated = tc.setup(&repo)
 
 			err = repo.Update(todoToUpdated)
 			if tc.expectedError {
@@ -271,25 +264,46 @@ func TestUpdateTodo(t *testing.T) {
 func TestDeleteTodo(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setup         func(db *sql.DB) []int
+		setup         func(repo *TodoPostgresRepository) []int
 		expectedError bool
 	}{
 		{
 			name: "empty ids",
-			setup: func(db *sql.DB) []int {
+			setup: func(repo *TodoPostgresRepository) []int {
 				return []int{}
 			},
 			expectedError: true,
 		},
 		{
 			name: "successfully delete one id",
-			setup: func(db *sql.DB) []int {
-				repo := TodoPostgresRepository{db: db}
+			setup: func(repo *TodoPostgresRepository) []int {
 				id, err := repo.Create(createTestTodo())
 				assert.NoError(t, err)
 				return []int{id}
 			},
 			expectedError: false,
+		},
+		{
+			name: "successfully delete many id",
+			setup: func(repo *TodoPostgresRepository) []int {
+				id1, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+				id2, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+				id3, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+				id4, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+				return []int{id1, id2, id3, id4}
+			},
+			expectedError: false,
+		},
+		{
+			name: "delete non-existing ids",
+			setup: func(repo *TodoPostgresRepository) []int {
+				return []int{999, 1239}
+			},
+			expectedError: true,
 		},
 	}
 
@@ -305,7 +319,7 @@ func TestDeleteTodo(t *testing.T) {
 			repo := TodoPostgresRepository{db: testDb}
 
 			var idsToDelete []int
-			idsToDelete = tc.setup(testDb)
+			idsToDelete = tc.setup(&repo)
 			err = repo.Delete(idsToDelete)
 			if tc.expectedError {
 				assert.Error(t, err)
