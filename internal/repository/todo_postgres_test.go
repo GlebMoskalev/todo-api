@@ -108,11 +108,214 @@ func TestCreateTodo(t *testing.T) {
 	}
 }
 
-//func TestGetByIdTodo(t *testing.T) {
-//	repo := TodoPostgresRepository{db: testDbInstance}
-//	id, err := repo.Create(createTestTodo())
-//	assert.NoError(t, err)
-//	todo, err := repo.GetById(id)
-//	assert.NoError(t, err)
-//	assert.NotNil(t, todo)
-//}
+func TestGetByIdTodo(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setup         func(db *sql.DB)
+		expectedId    int
+		expectedError bool
+	}{
+		{
+			name:          "empty database",
+			setup:         nil,
+			expectedError: true,
+		},
+		{
+			name: "returns task successfully",
+			setup: func(db *sql.DB) {
+				repo := TodoPostgresRepository{db: db}
+				repo.Create(createTestTodo())
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testDbName := fmt.Sprintf("test_db_%d", time.Now().UnixNano())
+			testDb, err := SetupTestDatabase(masterTestDb.DbAddress, testDbName)
+			assert.NoError(t, err)
+			defer testDb.Close()
+			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
+			repo := TodoPostgresRepository{db: testDb}
+			if tc.setup != nil {
+				tc.setup(testDb)
+			}
+			receivedTodo, err := repo.GetById(1)
+			if tc.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, receivedTodo)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, receivedTodo)
+			}
+
+		})
+	}
+}
+
+func TestUpdateTodo(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setup         func(db *sql.DB) *todo.Todo
+		expectedError bool
+	}{
+		{
+			name: "successfully update",
+			setup: func(db *sql.DB) *todo.Todo {
+				repo := TodoPostgresRepository{db: db}
+				id, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+
+				todoToUpdated := createTestTodo()
+				todoToUpdated.ID = id
+				todoToUpdated.Title = "updated titile"
+				todoToUpdated.Description = "updated description"
+				todoToUpdated.Priority = priority.Low
+				todoToUpdated.Status = status.Completed
+				todoToUpdated.Tags = []string{"updated", "tags"}
+				return todoToUpdated
+			},
+			expectedError: false,
+		},
+		{
+			name: "update non-existing todo",
+			setup: func(db *sql.DB) *todo.Todo {
+				testTodo := createTestTodo()
+				testTodo.ID = 999
+				return testTodo
+			},
+			expectedError: true,
+		},
+		{
+			name: "missing ID",
+			setup: func(db *sql.DB) *todo.Todo {
+				return createTestTodo()
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid priority",
+			setup: func(db *sql.DB) *todo.Todo {
+				repo := TodoPostgresRepository{db: db}
+				id, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+
+				todoToUpdated := createTestTodo()
+				todoToUpdated.ID = id
+				todoToUpdated.Priority = "invalid priority"
+				return todoToUpdated
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid status",
+			setup: func(db *sql.DB) *todo.Todo {
+				repo := TodoPostgresRepository{db: db}
+				id, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+
+				todoToUpdated := createTestTodo()
+				todoToUpdated.ID = id
+				todoToUpdated.Status = "invalid status"
+				return todoToUpdated
+			},
+			expectedError: true,
+		}, {
+			name: "update unchanged todo",
+			setup: func(db *sql.DB) *todo.Todo {
+				repo := TodoPostgresRepository{db: db}
+				testTodo := createTestTodo()
+				id, err := repo.Create(testTodo)
+				assert.NoError(t, err)
+				testTodo.ID = id
+				return testTodo
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testDbName := fmt.Sprintf("test_db_%d", time.Now().UnixNano())
+			testDb, err := SetupTestDatabase(masterTestDb.DbAddress, testDbName)
+			assert.NoError(t, err)
+			defer testDb.Close()
+			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
+
+			repo := TodoPostgresRepository{db: testDb}
+
+			var todoToUpdated *todo.Todo
+			todoToUpdated = tc.setup(testDb)
+
+			err = repo.Update(todoToUpdated)
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				updatedTodo, err := repo.GetById(todoToUpdated.ID)
+				assert.NoError(t, err)
+				assert.Equal(t, todoToUpdated.Title, updatedTodo.Title)
+				assert.Equal(t, todoToUpdated.Description, updatedTodo.Description)
+				assert.Equal(t, todoToUpdated.Priority, updatedTodo.Priority)
+				assert.Equal(t, todoToUpdated.Overdue, updatedTodo.Overdue)
+				assert.Equal(t, todoToUpdated.Status, updatedTodo.Status)
+				assert.ElementsMatch(t, todoToUpdated.Tags, updatedTodo.Tags)
+			}
+		})
+	}
+}
+
+func TestDeleteTodo(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setup         func(db *sql.DB) []int
+		expectedError bool
+	}{
+		{
+			name: "empty ids",
+			setup: func(db *sql.DB) []int {
+				return []int{}
+			},
+			expectedError: true,
+		},
+		{
+			name: "successfully delete one id",
+			setup: func(db *sql.DB) []int {
+				repo := TodoPostgresRepository{db: db}
+				id, err := repo.Create(createTestTodo())
+				assert.NoError(t, err)
+				return []int{id}
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testDbName := fmt.Sprintf("test_db_%d", time.Now().UnixNano())
+			testDb, err := SetupTestDatabase(masterTestDb.DbAddress, testDbName)
+			assert.NoError(t, err)
+			defer testDb.Close()
+			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
+
+			repo := TodoPostgresRepository{db: testDb}
+
+			var idsToDelete []int
+			idsToDelete = tc.setup(testDb)
+			err = repo.Delete(idsToDelete)
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				for _, id := range idsToDelete {
+					_, err = repo.GetById(id)
+					assert.Error(t, err)
+				}
+			}
+		})
+	}
+}

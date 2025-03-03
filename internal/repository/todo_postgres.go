@@ -155,6 +155,16 @@ func (r *TodoPostgresRepository) GetAll(
 }
 
 func (r *TodoPostgresRepository) Update(todo *todo.Todo) error {
+	if todo.ID == 0 {
+		return errors.New("absent id")
+	}
+	if !priority.IsValidPriority(todo.Priority) {
+		return errors.New("invalid priority")
+	}
+	if !status.IsValidStatus(todo.Status) {
+		return errors.New("invalid status")
+	}
+
 	res, err := r.db.Exec(
 		"UPDATE todos set title = $1, description = $2, due_date = $3, tags = $4, priority = $5,"+
 			" status = $6, overdue = $7 WHERE id = $8",
