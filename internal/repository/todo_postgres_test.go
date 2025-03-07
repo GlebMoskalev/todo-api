@@ -8,6 +8,8 @@ import (
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
 	"github.com/stretchr/testify/assert"
+	"io"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -92,7 +94,7 @@ func TestCreateTodo(t *testing.T) {
 			assert.NoError(t, err)
 			defer testDb.Close()
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
-			repo := TodoPostgresRepository{db: testDb}
+			repo := TodoPostgresRepository{db: testDb, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 			if tc.setup != nil {
 				tc.setup(&repo)
 			}
@@ -136,7 +138,7 @@ func TestGetByIdTodo(t *testing.T) {
 			assert.NoError(t, err)
 			defer testDb.Close()
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
-			repo := TodoPostgresRepository{db: testDb}
+			repo := TodoPostgresRepository{db: testDb, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 			if tc.setup != nil {
 				tc.setup(&repo)
 			}
@@ -237,7 +239,7 @@ func TestUpdateTodo(t *testing.T) {
 			defer testDb.Close()
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
 
-			repo := TodoPostgresRepository{db: testDb}
+			repo := TodoPostgresRepository{db: testDb, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 			todoToUpdated := tc.setup(&repo)
 
@@ -307,7 +309,7 @@ func TestDeleteTodo(t *testing.T) {
 			defer testDb.Close()
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
 
-			repo := TodoPostgresRepository{db: testDb}
+			repo := TodoPostgresRepository{db: testDb, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 			idsToDelete := tc.setup(&repo)
 			err = repo.Delete(idsToDelete)
@@ -602,7 +604,7 @@ func TestGetAllTodos(t *testing.T) {
 			defer testDb.Close()
 			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
 
-			repo := TodoPostgresRepository{db: testDb}
+			repo := TodoPostgresRepository{db: testDb, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 			expectedTodos := tc.prepareData(&repo)
 			fetchedTodos, err := tc.getAllTodos(&repo)
 			if tc.expectedError {
