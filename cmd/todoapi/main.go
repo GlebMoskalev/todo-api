@@ -28,16 +28,17 @@ func main() {
 	defer db.Close()
 
 	todoRepo := repository.NewTodoPostgresRepository(db)
-	id, err := todoRepo.Create(&todo.Todo{
+	todoRepo.Create(&todo.Todo{
 		Title:       "hah",
 		Description: "lol",
 		DueDate:     time.Time{},
 		Tags:        []string{"api"},
-		Priority:    priority.Low,
-		Status:      status.InProgress,
+		Priority:    priority.High,
+		Status:      status.Planned,
 		Overdue:     false,
 	})
-	//t, err := todoRepo.GetAll([]string{}, status.Canceled, priority.High, false, time.Time{})
-	//err = todoRepo.Delete([]int{0, 1, 2, 3})
-	fmt.Println(id, err)
+	t, err := todoRepo.GetAll([]string{}, status.Completed, "", todo.BoolPtr(true), time.Time{})
+	for _, td := range t {
+		fmt.Println(*td)
+	}
 }

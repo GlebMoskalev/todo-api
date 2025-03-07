@@ -32,7 +32,7 @@ func SetupMasterDatabase() *TestDatabase {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	container, dbInstance, dbAddr, err := createContainer(ctx, masterDbName)
 	if err != nil {
-		log.Fatal("failed to setup test", err)
+		log.Fatal("failed to prepareData test", err)
 	}
 
 	err = migrateDb(dbAddr)

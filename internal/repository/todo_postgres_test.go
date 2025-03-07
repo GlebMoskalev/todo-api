@@ -24,7 +24,7 @@ func createTestTodo() *todo.Todo {
 	return &todo.Todo{
 		Title:       "test",
 		Description: "for testing",
-		DueDate:     time.Now().Add(24 * time.Hour),
+		DueDate:     time.Now().Add(24 * time.Hour).UTC(),
 		Tags:        []string{"test", "testing"},
 		Priority:    priority.High,
 		Status:      status.InProgress,
@@ -41,11 +41,10 @@ func TestCreateTodo(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:          "successfully create",
-			todo:          createTestTodo(),
-			expectedId:    1,
-			expectedError: false,
-			setup:         nil,
+			name:       "successfully create",
+			todo:       createTestTodo(),
+			expectedId: 1,
+			setup:      nil,
 		},
 		{
 			name:       "increase id",
@@ -56,7 +55,6 @@ func TestCreateTodo(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, 1, firstId)
 			},
-			expectedError: false,
 		},
 		{
 			name: "invalid priority",
@@ -123,7 +121,6 @@ func TestGetByIdTodo(t *testing.T) {
 			setup: func(repo *TodoPostgresRepository) {
 				repo.Create(createTestTodo())
 			},
-			expectedError: false,
 		},
 	}
 
@@ -173,7 +170,6 @@ func TestUpdateTodo(t *testing.T) {
 				todoToUpdated.Tags = []string{"updated", "tags"}
 				return todoToUpdated
 			},
-			expectedError: false,
 		},
 		{
 			name: "update non-existing todo",
@@ -225,7 +221,6 @@ func TestUpdateTodo(t *testing.T) {
 				testTodo.ID = id
 				return testTodo
 			},
-			expectedError: false,
 		},
 	}
 
@@ -240,8 +235,7 @@ func TestUpdateTodo(t *testing.T) {
 
 			repo := TodoPostgresRepository{db: testDb}
 
-			var todoToUpdated *todo.Todo
-			todoToUpdated = tc.setup(&repo)
+			todoToUpdated := tc.setup(&repo)
 
 			err = repo.Update(todoToUpdated)
 			if tc.expectedError {
@@ -250,12 +244,7 @@ func TestUpdateTodo(t *testing.T) {
 				assert.NoError(t, err)
 				updatedTodo, err := repo.GetById(todoToUpdated.ID)
 				assert.NoError(t, err)
-				assert.Equal(t, todoToUpdated.Title, updatedTodo.Title)
-				assert.Equal(t, todoToUpdated.Description, updatedTodo.Description)
-				assert.Equal(t, todoToUpdated.Priority, updatedTodo.Priority)
-				assert.Equal(t, todoToUpdated.Overdue, updatedTodo.Overdue)
-				assert.Equal(t, todoToUpdated.Status, updatedTodo.Status)
-				assert.ElementsMatch(t, todoToUpdated.Tags, updatedTodo.Tags)
+				assert.Equal(t, todoToUpdated, updatedTodo)
 			}
 		})
 	}
@@ -281,7 +270,6 @@ func TestDeleteTodo(t *testing.T) {
 				assert.NoError(t, err)
 				return []int{id}
 			},
-			expectedError: false,
 		},
 		{
 			name: "successfully delete many id",
@@ -296,7 +284,6 @@ func TestDeleteTodo(t *testing.T) {
 				assert.NoError(t, err)
 				return []int{id1, id2, id3, id4}
 			},
-			expectedError: false,
 		},
 		{
 			name: "delete non-existing ids",
@@ -318,8 +305,7 @@ func TestDeleteTodo(t *testing.T) {
 
 			repo := TodoPostgresRepository{db: testDb}
 
-			var idsToDelete []int
-			idsToDelete = tc.setup(&repo)
+			idsToDelete := tc.setup(&repo)
 			err = repo.Delete(idsToDelete)
 			if tc.expectedError {
 				assert.Error(t, err)
@@ -329,6 +315,231 @@ func TestDeleteTodo(t *testing.T) {
 					_, err = repo.GetById(id)
 					assert.Error(t, err)
 				}
+			}
+		})
+	}
+}
+
+func TestGetAllTodos(t *testing.T) {
+	testCases := []struct {
+		name          string
+		prepareData   func(repo *TodoPostgresRepository) todo.Todos
+		getAllTodos   func(repo *TodoPostgresRepository) (todo.Todos, error)
+		expectedError bool
+	}{
+		{
+			name: "successfully receiving todo",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				assert.NoError(t, err)
+				id, err = repo.Create(todo2)
+				todo2.ID = id
+				return todo.Todos{todo1, todo2}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", "", nil, time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "empty database",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				return todo.Todos{}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", "", nil, time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "successfully receiving todo for status",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.Status = status.InProgress
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.Status = status.InProgress
+				id, err = repo.Create(todo2)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				todo3.Status = status.Planned
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				todo3.ID = id
+				return todo.Todos{todo1, todo2}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, status.InProgress, "", nil, time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "successfully receiving todo for priority",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.Priority = priority.High
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.Priority = priority.High
+				id, err = repo.Create(todo2)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				todo3.Priority = priority.Low
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				todo3.ID = id
+				return todo.Todos{todo1, todo2}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", priority.High, nil, time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "invalid status",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				return make(todo.Todos, 0)
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "invalid status", "", nil, time.Time{})
+				return todos, err
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid priority",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				return make(todo.Todos, 0)
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", "invalid priority", nil, time.Time{})
+				return todos, err
+			},
+			expectedError: true,
+		},
+		{
+			name: "successfully receiving todo for tags",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.Tags = []string{"test", "api"}
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.Tags = []string{"test", "todo"}
+				id, err = repo.Create(todo2)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				todo3.Tags = []string{"api", "test"}
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				todo3.ID = id
+
+				todo4 := createTestTodo()
+				todo4.Tags = []string{}
+				_, err = repo.Create(todo4)
+				assert.NoError(t, err)
+				return todo.Todos{todo1, todo2, todo3}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{"test", "api"}, "", priority.High, nil, time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "successfully receiving todo for overdue",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.Overdue = true
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.Overdue = true
+				id, err = repo.Create(todo2)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				return todo.Todos{todo1, todo2}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", "", todo.BoolPtr(true), time.Time{})
+				return todos, err
+			},
+		},
+		{
+			name: "successfully receiving todo by multiple parameters",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.Overdue = true
+				todo1.Priority = priority.High
+				todo1.Status = status.InProgress
+				todo1.Tags = []string{"api", "todo1"}
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.Overdue = true
+				todo2.Priority = priority.High
+				todo2.Status = status.InProgress
+				todo2.Tags = []string{"api", "todo2"}
+				id, err = repo.Create(todo2)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				return todo.Todos{todo1, todo2}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{"api"}, status.InProgress, priority.High, todo.BoolPtr(true), time.Time{})
+				return todos, err
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testDbName := fmt.Sprintf("test_db_%d", time.Now().UnixNano())
+			testDb, err := SetupTestDatabase(masterTestDb.DbAddress, testDbName)
+			assert.NoError(t, err)
+			defer testDb.Close()
+			defer TearDownTestDatabase(masterTestDb.DbAddress, testDbName)
+
+			repo := TodoPostgresRepository{db: testDb}
+			expectedTodos := tc.prepareData(&repo)
+			fetchedTodos, err := tc.getAllTodos(&repo)
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(expectedTodos), len(fetchedTodos))
+				assert.ElementsMatch(t, expectedTodos, fetchedTodos)
 			}
 		})
 	}

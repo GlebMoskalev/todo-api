@@ -18,7 +18,7 @@ type Todo struct {
 	Overdue     bool              `json:"overdue"`
 }
 
-type Todos []Todo
+type Todos []*Todo
 
 func (t *Todo) Validate() error {
 	if !status.IsValidStatus(t.Status) {
@@ -28,4 +28,8 @@ func (t *Todo) Validate() error {
 		return fmt.Errorf("invalid value field \"Priority\": %s", t.Priority)
 	}
 	return nil
+}
+
+func BoolPtr(b bool) *bool {
+	return &b
 }
