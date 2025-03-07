@@ -27,13 +27,23 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 		return 0, err
 	}
 
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
 	var utcDueDate any
 	if todo.DueDate.Valid {
 		utcDueDate = todo.DueDate.Time.UTC()
 	} else {
 		utcDueDate = nil
 	}
-	row := r.db.QueryRow(
+	row := tx.QueryRow(
 		"INSERT INTO todos (title, description, due_date, tags, priority, status, overdue) "+
 			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
 		todo.Title,
@@ -48,12 +58,17 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 	if err := row.Scan(&id); err != nil {
 		return 0, fmt.Errorf("error scanning last insert id: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
 	todo.ID = id
 	return todo.ID, nil
 }
 
 func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 	t := &todo.Todo{}
+
 	err := r.db.QueryRow(
 		"SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos WHERE id = $1",
 		id,
@@ -74,6 +89,7 @@ func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 	if t.DueDate.Valid {
 		t.DueDate.Time = t.DueDate.Time.UTC()
 	}
+
 	return t, nil
 }
 
@@ -138,6 +154,8 @@ func (r *TodoPostgresRepository) GetAll(
 	}
 
 	rows, err := r.db.Query(query, params...)
+	defer rows.Close()
+
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +206,17 @@ func (r *TodoPostgresRepository) Update(todo *todo.Todo) error {
 	} else {
 		utcDueDate = nil
 	}
-	res, err := r.db.Exec(
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	res, err := tx.Exec(
 		"UPDATE todos set title = $1, description = $2, due_date = $3, tags = $4, priority = $5,"+
 			" status = $6, overdue = $7 WHERE id = $8",
 		todo.Title,
@@ -213,6 +241,9 @@ func (r *TodoPostgresRepository) Update(todo *todo.Todo) error {
 		return errors.New("updated failed")
 	}
 
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -230,7 +261,16 @@ func (r *TodoPostgresRepository) Delete(ids []int) error {
 
 	query := fmt.Sprintf("DELETE FROM todos WHERE id IN (%s)", strings.Join(placeholders, ", "))
 
-	res, err := r.db.Exec(query, params...)
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	res, err := tx.Exec(query, params...)
 	if err != nil {
 		return err
 	}
@@ -244,5 +284,8 @@ func (r *TodoPostgresRepository) Delete(ids []int) error {
 		return errors.New("deleted failed")
 	}
 
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	return nil
 }
