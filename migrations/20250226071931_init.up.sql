@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS todos (
     id SERIAL PRIMARY KEY,
     title text NOT NULL,
     description text,
-    due_date timestamptz,
+    due_date DATE,
     tags text[],
     priority priority,
     status status,

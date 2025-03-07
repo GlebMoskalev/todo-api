@@ -27,7 +27,12 @@ func (r *TodoPostgresRepository) Create(todo *todo.Todo) (int, error) {
 		return 0, err
 	}
 
-	utcDueDate := todo.DueDate.UTC()
+	var utcDueDate any
+	if todo.DueDate.Valid {
+		utcDueDate = todo.DueDate.Time.UTC()
+	} else {
+		utcDueDate = nil
+	}
 	row := r.db.QueryRow(
 		"INSERT INTO todos (title, description, due_date, tags, priority, status, overdue) "+
 			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
@@ -65,6 +70,10 @@ func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 	if err != nil {
 		return nil, errors.New("record not found")
 	}
+
+	if t.DueDate.Valid {
+		t.DueDate.Time = t.DueDate.Time.UTC()
+	}
 	return t, nil
 }
 
@@ -73,7 +82,7 @@ func (r *TodoPostgresRepository) GetAll(
 	statusFilter status.Status,
 	priorityFilter priority.Priority,
 	overdue *bool,
-	dueDate time.Time) (todo.Todos, error) {
+	dueDate sql.NullTime) (todo.Todos, error) {
 	query := "SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos"
 
 	var conditions []string
@@ -118,9 +127,9 @@ func (r *TodoPostgresRepository) GetAll(
 		paramsCount++
 	}
 
-	if !dueDate.IsZero() {
+	if dueDate.Valid {
 		conditions = append(conditions, fmt.Sprintf("due_date = $%d", paramsCount))
-		params = append(params, dueDate)
+		params = append(params, dueDate.Time.UTC().Format(time.DateOnly))
 		paramsCount++
 	}
 
@@ -149,6 +158,9 @@ func (r *TodoPostgresRepository) GetAll(
 		if err != nil {
 			return nil, err
 		}
+		if t.DueDate.Valid {
+			t.DueDate.Time = t.DueDate.Time.UTC()
+		}
 		todos = append(todos, &t)
 	}
 
@@ -170,7 +182,12 @@ func (r *TodoPostgresRepository) Update(todo *todo.Todo) error {
 		return errors.New("invalid status")
 	}
 
-	utcDueDate := todo.DueDate.UTC()
+	var utcDueDate any
+	if todo.DueDate.Valid {
+		utcDueDate = todo.DueDate.Time.UTC().Format(time.DateOnly)
+	} else {
+		utcDueDate = nil
+	}
 	res, err := r.db.Exec(
 		"UPDATE todos set title = $1, description = $2, due_date = $3, tags = $4, priority = $5,"+
 			" status = $6, overdue = $7 WHERE id = $8",

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
@@ -24,11 +25,14 @@ func createTestTodo() *todo.Todo {
 	return &todo.Todo{
 		Title:       "test",
 		Description: "for testing",
-		DueDate:     time.Now().Add(24 * time.Hour).UTC(),
-		Tags:        []string{"test", "testing"},
-		Priority:    priority.High,
-		Status:      status.InProgress,
-		Overdue:     false,
+		DueDate: sql.NullTime{
+			Time:  time.Now().UTC().Truncate(24 * time.Hour),
+			Valid: true,
+		},
+		Tags:     []string{"test", "testing"},
+		Priority: priority.High,
+		Status:   status.InProgress,
+		Overdue:  false,
 	}
 }
 
@@ -342,7 +346,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "", "", nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, "", "", nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
@@ -352,7 +358,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "", "", nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, "", "", nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
@@ -379,7 +387,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, status.InProgress, "", nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, status.InProgress, "", nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
@@ -406,7 +416,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "", priority.High, nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, "", priority.High, nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
@@ -416,7 +428,9 @@ func TestGetAllTodos(t *testing.T) {
 				return make(todo.Todos, 0)
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "invalid status", "", nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, "invalid status", "", nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 			expectedError: true,
@@ -427,7 +441,9 @@ func TestGetAllTodos(t *testing.T) {
 				return make(todo.Todos, 0)
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "", "invalid priority", nil, time.Time{})
+				todos, err := repo.GetAll([]string{}, "", "invalid priority", nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 			expectedError: true,
@@ -460,7 +476,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2, todo3}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{"test", "api"}, "", priority.High, nil, time.Time{})
+				todos, err := repo.GetAll([]string{"test", "api"}, "", priority.High, nil, sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
@@ -485,7 +503,58 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{}, "", "", todo.BoolPtr(true), time.Time{})
+				todos, err := repo.GetAll([]string{}, "", "", todo.BoolPtr(true), sql.NullTime{
+					Valid: false,
+				})
+				return todos, err
+			},
+		},
+		{
+			name: "successfully receiving todo for time",
+			prepareData: func(repo *TodoPostgresRepository) todo.Todos {
+				todo1 := createTestTodo()
+				todo1.DueDate = sql.NullTime{
+					Time:  time.Date(2030, 12, 30, 0, 0, 0, 0, time.UTC),
+					Valid: true,
+				}
+				id, err := repo.Create(todo1)
+				assert.NoError(t, err)
+				todo1.ID = id
+
+				todo2 := createTestTodo()
+				todo2.DueDate = sql.NullTime{
+					Time:  time.Date(2030, 12, 30, 12, 0, 0, 0, time.UTC),
+					Valid: true,
+				}
+				id, err = repo.Create(todo2)
+				todo2.DueDate.Time = todo2.DueDate.Time.Truncate(24 * time.Hour)
+				assert.NoError(t, err)
+				todo2.ID = id
+
+				todo3 := createTestTodo()
+				todo3.DueDate = sql.NullTime{
+					Time:  time.Date(2030, 12, 30, 14, 30, 300, 0, time.UTC),
+					Valid: true,
+				}
+				id, err = repo.Create(todo3)
+				assert.NoError(t, err)
+				todo3.DueDate.Time = todo2.DueDate.Time.Truncate(24 * time.Hour)
+				todo3.ID = id
+
+				todo4 := createTestTodo()
+				todo4.DueDate = sql.NullTime{
+					Time:  time.Date(2030, 10, 30, 14, 30, 300, 0, time.UTC),
+					Valid: true,
+				}
+				id, err = repo.Create(todo4)
+				assert.NoError(t, err)
+				return todo.Todos{todo1, todo2, todo3}
+			},
+			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
+				todos, err := repo.GetAll([]string{}, "", "", nil, sql.NullTime{
+					Valid: true,
+					Time:  time.Date(2030, 12, 30, 0, 0, 0, 0, time.UTC),
+				})
 				return todos, err
 			},
 		},
@@ -516,7 +585,9 @@ func TestGetAllTodos(t *testing.T) {
 				return todo.Todos{todo1, todo2}
 			},
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
-				todos, err := repo.GetAll([]string{"api"}, status.InProgress, priority.High, todo.BoolPtr(true), time.Time{})
+				todos, err := repo.GetAll([]string{"api"}, status.InProgress, priority.High, todo.BoolPtr(true), sql.NullTime{
+					Valid: false,
+				})
 				return todos, err
 			},
 		},
