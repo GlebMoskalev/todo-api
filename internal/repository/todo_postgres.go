@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/GlebMoskalev/todo-api/internal/models/pagination"
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
@@ -121,12 +122,18 @@ func (r *TodoPostgresRepository) GetAll(
 	statusFilter status.Status,
 	priorityFilter priority.Priority,
 	overdue *bool,
-	dueDate todo.NullTime) (todo.Todos, error) {
+	dueDate todo.NullTime,
+	paginationParams pagination.Pagination) (todo.Todos, error) {
 	r.logger.Debug("Fetching all todos", slog.Any("tags", tags),
 		slog.String("status", string(statusFilter)), slog.String("priority", string(priorityFilter)),
 		slog.Any("overdue", overdue))
-	query := "SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos"
 
+	if paginationParams.Limit <= 0 || paginationParams.Offset < 0 {
+		r.logger.Warn("Invalid pagination parameters", slog.Int("pagination_offset", paginationParams.Offset),
+			slog.Int("pagination_limit", paginationParams.Limit))
+		return nil, fmt.Errorf("invalid pagination parameters: Offset must be >= 0 and Limit must be > 0")
+	}
+	query := "SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos"
 	var conditions []string
 	var params []interface{}
 	paramsCount := 1
@@ -178,6 +185,13 @@ func (r *TodoPostgresRepository) GetAll(
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
+
+	query += fmt.Sprintf(" LIMIT $%d", paramsCount)
+	params = append(params, paginationParams.Limit)
+	paramsCount++
+	query += fmt.Sprintf(" OFFSET $%d", paramsCount)
+	params = append(params, paginationParams.Offset)
+	paramsCount++
 
 	rows, err := r.db.Query(query, params...)
 	if err != nil {

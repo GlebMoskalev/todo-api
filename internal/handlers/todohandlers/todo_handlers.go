@@ -2,6 +2,7 @@ package todohandlers
 
 import (
 	"encoding/json"
+	"github.com/GlebMoskalev/todo-api/internal/models/pagination"
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
@@ -113,6 +114,7 @@ func GetAllTodos(repo *repository.TodoPostgresRepository) http.HandlerFunc {
 		var priorityFilter priority.Priority
 		var overdue *bool
 		var dueDate todo.NullTime
+		var paginationParams pagination.Pagination
 
 		query := r.URL.Query()
 
@@ -172,7 +174,31 @@ func GetAllTodos(repo *repository.TodoPostgresRepository) http.HandlerFunc {
 			dueDate = todo.NullTime{Valid: false}
 		}
 
-		todos, err := repo.GetAll(tags, statusFilter, priorityFilter, overdue, dueDate)
+		if rawLimit := query.Get("limit"); rawLimit != "" {
+			limitInt, err := strconv.Atoi(rawLimit)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+				return
+			}
+			paginationParams.Limit = limitInt
+		} else {
+			paginationParams.Limit = pagination.DefaultLimit
+		}
+
+		if rawOffset := query.Get("offset"); rawOffset != "" {
+			offsetInt, err := strconv.Atoi(rawOffset)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+				return
+			}
+			paginationParams.Offset = offsetInt
+		} else {
+			paginationParams.Offset = pagination.DefaultOffset
+		}
+
+		todos, err := repo.GetAll(tags, statusFilter, priorityFilter, overdue, dueDate, paginationParams)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))

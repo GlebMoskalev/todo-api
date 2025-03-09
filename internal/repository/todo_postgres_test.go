@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/GlebMoskalev/todo-api/internal/models/pagination"
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
@@ -349,6 +350,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "", "", nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -361,6 +365,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "", "", nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -390,6 +397,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, status.InProgress, "", nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -419,6 +429,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "", priority.High, nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -431,6 +444,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "invalid status", "", nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -444,6 +460,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "", "invalid priority", nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -479,6 +498,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{"test", "api"}, "", priority.High, nil, todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -506,6 +528,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{}, "", "", todo.BoolPtr(true), todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -555,6 +580,9 @@ func TestGetAllTodos(t *testing.T) {
 				todos, err := repo.GetAll([]string{}, "", "", nil, todo.NullTime{
 					Valid: true,
 					Time:  time.Date(2030, 12, 30, 0, 0, 0, 0, time.UTC),
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
@@ -588,6 +616,9 @@ func TestGetAllTodos(t *testing.T) {
 			getAllTodos: func(repo *TodoPostgresRepository) (todo.Todos, error) {
 				todos, err := repo.GetAll([]string{"api"}, status.InProgress, priority.High, todo.BoolPtr(true), todo.NullTime{
 					Valid: false,
+				}, pagination.Pagination{
+					Offset: pagination.DefaultOffset,
+					Limit:  pagination.DefaultLimit,
 				})
 				return todos, err
 			},
