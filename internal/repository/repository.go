@@ -4,13 +4,12 @@ import (
 	"github.com/GlebMoskalev/todo-api/internal/models/priority"
 	"github.com/GlebMoskalev/todo-api/internal/models/status"
 	"github.com/GlebMoskalev/todo-api/internal/models/todo"
-	"time"
 )
 
 type TodoRepository interface {
 	Create(todo *todo.Todo) (int, error)
 	GetById(id int) (*todo.Todo, error)
-	GetAll(tags []string, status status.Status, priority priority.Priority, overdue bool, dueDate time.Time) (*todo.Todos, error)
+	GetAll(tags []string, statusFilter status.Status, priorityFilter priority.Priority, overdue *bool, dueDate todo.NullTime) (*todo.Todos, error)
 	Update(todo *todo.Todo) error
 	Delete(ids []int) error
 }

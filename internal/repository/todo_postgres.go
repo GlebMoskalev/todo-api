@@ -82,6 +82,7 @@ func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 	r.logger.Debug("Fetching todo by id", slog.Int("ID", id))
 	t := &todo.Todo{}
 
+	var dueDate sql.NullTime
 	err := r.db.QueryRow(
 		"SELECT id, title, description, due_date, tags, priority, status, overdue FROM todos WHERE id = $1",
 		id,
@@ -89,7 +90,7 @@ func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 		&t.ID,
 		&t.Title,
 		&t.Description,
-		&t.DueDate,
+		&dueDate,
 		pq.Array(&t.Tags),
 		&t.Priority,
 		&t.Status,
@@ -100,8 +101,15 @@ func (r *TodoPostgresRepository) GetById(id int) (*todo.Todo, error) {
 		return nil, errors.New("record not found")
 	}
 
-	if t.DueDate.Valid {
-		t.DueDate.Time = t.DueDate.Time.UTC()
+	if dueDate.Valid {
+		t.DueDate = todo.NullTime{
+			Time:  dueDate.Time.UTC(),
+			Valid: true,
+		}
+	} else {
+		t.DueDate = todo.NullTime{
+			Valid: false,
+		}
 	}
 
 	r.logger.Debug("Todo fetched", slog.Int("id", t.ID))
@@ -113,7 +121,7 @@ func (r *TodoPostgresRepository) GetAll(
 	statusFilter status.Status,
 	priorityFilter priority.Priority,
 	overdue *bool,
-	dueDate sql.NullTime) (todo.Todos, error) {
+	dueDate todo.NullTime) (todo.Todos, error) {
 	r.logger.Debug("Fetching all todos", slog.Any("tags", tags),
 		slog.String("status", string(statusFilter)), slog.String("priority", string(priorityFilter)),
 		slog.Any("overdue", overdue))
@@ -185,11 +193,12 @@ func (r *TodoPostgresRepository) GetAll(
 	var todos todo.Todos
 	for rows.Next() {
 		t := todo.Todo{}
+		var dueDate sql.NullTime
 		err := rows.Scan(
 			&t.ID,
 			&t.Title,
 			&t.Description,
-			&t.DueDate,
+			&dueDate,
 			pq.Array(&t.Tags),
 			&t.Priority,
 			&t.Status,
@@ -199,8 +208,15 @@ func (r *TodoPostgresRepository) GetAll(
 			r.logger.Error("Failed to scan row", slog.String("error", err.Error()))
 			return nil, err
 		}
-		if t.DueDate.Valid {
-			t.DueDate.Time = t.DueDate.Time.UTC()
+		if dueDate.Valid {
+			t.DueDate = todo.NullTime{
+				Time:  dueDate.Time.UTC(),
+				Valid: true,
+			}
+		} else {
+			t.DueDate = todo.NullTime{
+				Valid: false,
+			}
 		}
 		todos = append(todos, &t)
 	}

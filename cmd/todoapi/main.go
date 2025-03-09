@@ -1,17 +1,14 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"github.com/GlebMoskalev/todo-api/internal/database"
-	"github.com/GlebMoskalev/todo-api/internal/models/priority"
-	"github.com/GlebMoskalev/todo-api/internal/models/status"
-	"github.com/GlebMoskalev/todo-api/internal/models/todo"
 	"github.com/GlebMoskalev/todo-api/internal/repository"
+	"github.com/GlebMoskalev/todo-api/internal/routes"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 )
 
@@ -42,25 +39,8 @@ func main() {
 	logger.Info("Database connection established successfully.")
 
 	todoRepo := repository.NewTodoPostgresRepository(db, logger)
-	id, _ := todoRepo.Create(&todo.Todo{
-		Title:       "hah",
-		Description: "lol",
-		DueDate: sql.NullTime{
-			Valid: false,
-		},
-		Tags:     []string{"api"},
-		Priority: priority.High,
-		Status:   status.Planned,
-		Overdue:  false,
-	})
-	//t, err := todoRepo.GetAll([]string{}, "", "", nil, sql.NullTime{
-	//	Valid: false,
-	//})
-	//for _, td := range t {
-	//	fmt.Println(*td)
-	//}
-	f, _ := todoRepo.GetById(id)
-	fmt.Println((*f).DueDate)
+	r := routes.SetupRouter(todoRepo)
+	http.ListenAndServe(":8080", r)
 }
 
 func setupLogger() *slog.Logger {
